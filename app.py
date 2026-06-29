@@ -89,7 +89,20 @@ def index():
                 + ", ".join(f"{a} -> {b}" for a, b in result.cycles_removed)
             )
 
-        # Build a display-friendly, ES-ordered table of every fetched issue.
+        _CLOSED = {"done", "closed", "resolved", "cancelled", "won't do", "wont do", "rejected"}
+
+        def _row_sort_key(r):
+            is_open = r["status"].lower() not in _CLOSED
+            # Tier 0: critical + open  (most urgent)
+            # Tier 1: critical + closed
+            # Tier 2: non-critical + open
+            # Tier 3: non-critical + closed
+            tier = 0 if (r["is_critical"] and is_open) else \
+                   1 if r["is_critical"] else \
+                   2 if is_open else 3
+            return (tier, r["ES"] if r["ES"] is not None else 0, r["key"])
+
+        # Build a display-friendly table of every fetched issue.
         rows = []
         for key, issue in issues.items():
             node = result.nodes.get(key)
@@ -109,7 +122,7 @@ def index():
                 "float": node["float"] if node else None,
                 "is_critical": node["is_critical"] if node else False,
             })
-        rows.sort(key=lambda r: (r["ES"] if r["ES"] is not None else 0, r["key"]))
+        rows.sort(key=_row_sort_key)
 
         context["issues"] = rows
         context["result"] = {
