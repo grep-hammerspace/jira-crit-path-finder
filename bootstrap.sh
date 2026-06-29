@@ -25,7 +25,7 @@ start() {
     docker compose -f "$DIR/compose.yaml" up -d --build
 
     echo "==> Enabling Tailscale Funnel (443 -> localhost:$PORT)..."
-    tailscale funnel --bg "$PORT"
+    sudo tailscale funnel --bg "$PORT"
 
     echo ""
     echo "Live at: $(funnel_url)"
@@ -36,7 +36,7 @@ stop() {
     docker compose -f "$DIR/compose.yaml" down
 
     echo "==> Disabling Tailscale Funnel..."
-    tailscale funnel reset
+    sudo tailscale funnel reset
 
     echo "Done."
 }
