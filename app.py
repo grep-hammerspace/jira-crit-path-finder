@@ -51,6 +51,9 @@ def index():
 
         try:
             html = fetch_page(url)
+        except ValueError as e:
+            context["error"] = str(e)
+            return render_template("index.html", **context)
         except requests.RequestException as e:
             context["error"] = f"Couldn't fetch that page: {e}"
             return render_template("index.html", **context)

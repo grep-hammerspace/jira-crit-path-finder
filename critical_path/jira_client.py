@@ -16,7 +16,9 @@ since those are the ones that map cleanly onto Critical Path Method semantics
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import dataclasses
 from typing import Optional
 from urllib.parse import urlparse, urljoin
@@ -25,6 +27,44 @@ import requests
 from bs4 import BeautifulSoup
 
 ISSUE_KEY_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,9}-\d+)\b")
+
+_BLOCKED_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
+    ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local / cloud metadata endpoints
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("100.64.0.0/10"),   # Tailscale / CGNAT range
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),         # IPv6 ULA
+    ipaddress.ip_network("fe80::/10"),        # IPv6 link-local
+]
+
+
+def _assert_public_url(url: str) -> None:
+    """
+    Reject URLs that resolve to private/reserved IP space to prevent SSRF.
+    Checks every address returned by DNS so multi-homed hosts can't sneak through.
+    Raises ValueError with a user-visible message on failure.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Only http/https URLs are supported, got: {parsed.scheme!r}")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("URL has no hostname.")
+    try:
+        results = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError(f"Could not resolve {host!r}: {exc}") from exc
+    for _family, _type, _proto, _canon, sockaddr in results:
+        addr = ipaddress.ip_address(sockaddr[0])
+        if any(addr in net for net in _BLOCKED_NETWORKS):
+            raise ValueError(
+                f"Blocked: {host!r} resolves to {addr}, which is a private or "
+                f"reserved address. Only publicly routable URLs are allowed."
+            )
 
 # Default working day length used to convert JIRA's "original estimate"
 # (given in seconds) into a duration measured in days.
@@ -112,6 +152,7 @@ def discover_jira_base_and_keys(source_url: str, html: str) -> tuple[str, set[st
 
 
 def fetch_page(url: str, timeout: int = 20) -> str:
+    _assert_public_url(url)
     resp = requests.get(url, timeout=timeout, headers={"User-Agent": "critical-path-finder/1.0"})
     resp.raise_for_status()
     return resp.text
@@ -125,6 +166,7 @@ def fetch_issue(
 ) -> Issue:
     """Fetch one issue's details from the JIRA REST API (v2)."""
     api_url = f"{jira_base}/rest/api/2/issue/{key}"
+    _assert_public_url(api_url)
     params = {"fields": "summary,status,priority,labels,issuelinks,timetracking,timeoriginalestimate"}
     resp = requests.get(api_url, params=params, auth=auth, timeout=timeout,
                         headers={"User-Agent": "critical-path-finder/1.0", "Accept": "application/json"})
