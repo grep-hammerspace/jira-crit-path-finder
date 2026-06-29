@@ -16,6 +16,9 @@ from critical_path.jira_client import (
     fetch_page,
     discover_jira_base_and_keys,
     fetch_all_issues,
+    extract_jql,
+    search_issue_keys,
+    JiraClientError,
 )
 from critical_path.graph import build_graph, compute_critical_path
 
@@ -60,6 +63,21 @@ def index():
 
         jira_base, keys = discover_jira_base_and_keys(url, html)
         context["jira_base"] = jira_base
+
+        # Private/Cloud filter URLs can't be scraped (login-gated, JS-rendered),
+        # so if the page yielded nothing but the URL carries a JQL query, resolve
+        # the keys through the authenticated search API instead.
+        if not keys:
+            jql = extract_jql(url)
+            if jql:
+                try:
+                    keys = search_issue_keys(jira_base, jql, auth=auth)
+                except JiraClientError as e:
+                    context["error"] = str(e)
+                    return render_template("index.html", **context)
+                except requests.RequestException as e:
+                    context["error"] = f"Couldn't query the JIRA search API: {e}"
+                    return render_template("index.html", **context)
 
         if not keys:
             context["error"] = (
