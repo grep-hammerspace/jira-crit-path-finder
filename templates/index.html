@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Critical Path Finder</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <h1>Critical Path Finder</h1>
+      <p class="subtitle">Paste a link to a page that references JIRA issues. We'll trace the <code>blocks</code> / <code>is blocked by</code> links and run the Critical Path Method to find which tasks actually gate the project finish date.</p>
+    </header>
+
+    <form method="post" class="form">
+      <label class="field">
+        <span>Page URL</span>
+        <input type="url" name="url" placeholder="https://issues.apache.org/jira/issues/?jql=project=CAMEL"
+               value="{{ url }}" required>
+      </label>
+
+      <details class="auth-details">
+        <summary>Private JIRA instance? Add credentials</summary>
+        <div class="auth-fields">
+          <label class="field">
+            <span>Email / username</span>
+            <input type="text" name="email" value="{{ email }}" placeholder="you@company.com">
+          </label>
+          <label class="field">
+            <span>API token / password</span>
+            <input type="password" name="api_token" placeholder="•••••••••">
+          </label>
+        </div>
+      </details>
+
+      <button type="submit">Find critical path</button>
+    </form>
+
+    {% if error %}
+      <div class="banner banner--error">{{ error }}</div>
+    {% endif %}
+
+    {% if warnings %}
+      {% for w in warnings %}
+        <div class="banner banner--warn">{{ w }}</div>
+      {% endfor %}
+    {% endif %}
+
+    {% if result %}
+      <section class="summary">
+        <div class="stat">
+          <span class="stat__value">{{ result.project_duration }}</span>
+          <span class="stat__label">days (minimum project duration)</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value">{{ result.num_critical }} / {{ result.num_issues }}</span>
+          <span class="stat__label">issues on the critical path</span>
+        </div>
+      </section>
+
+      <section class="chain">
+        <h2>Critical chain</h2>
+        <div class="chain__path">
+          {% for key in result.critical_path %}
+            <span class="chip chip--critical">{{ key }}</span>{% if not loop.last %}<span class="arrow">→</span>{% endif %}
+          {% endfor %}
+        </div>
+        <p class="hint">Any slip on these tasks pushes the whole project back. Everything else below has float (slack) — some room to move without affecting the finish date.</p>
+      </section>
+
+      <section class="table-wrap">
+        <h2>All issues, in earliest-start order</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Summary</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>ES → EF</th>
+              <th>LS → LF</th>
+              <th>Float</th>
+              <th>Critical?</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in issues %}
+            <tr class="{{ 'row--critical' if row.is_critical else '' }}">
+              <td><a href="{{ row.url }}" target="_blank" rel="noopener">{{ row.key }}</a></td>
+              <td class="summary-cell">{{ row.summary }}</td>
+              <td><span class="status-pill">{{ row.status }}</span></td>
+              <td>{{ row.duration }}d{% if not row.duration_is_estimated %}<span class="muted"> (assumed)</span>{% endif %}</td>
+              <td>{{ row.ES }} → {{ row.EF }}</td>
+              <td>{{ row.LS }} → {{ row.LF }}</td>
+              <td>{{ row.float }}</td>
+              <td>{% if row.is_critical %}<span class="chip chip--critical chip--sm">critical</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    {% endif %}
+
+    <footer class="footer">
+      <p>Duration defaults to 1 day per issue when JIRA has no "Original Estimate" set — these are marked <span class="muted">(assumed)</span>. Only the <code>blocks</code> / <code>is blocked by</code> link types are treated as dependencies; other link types (relates to, duplicates, etc.) are ignored.</p>
+    </footer>
+  </main>
+</body>
+</html>
