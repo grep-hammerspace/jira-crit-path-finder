@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 import dataclasses
 from typing import Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
@@ -117,6 +117,58 @@ def fetch_page(url: str, timeout: int = 20) -> str:
     return resp.text
 
 
+def extract_jql(url: str) -> Optional[str]:
+    """Return the `jql` query parameter from a JIRA filter/search URL, if any.
+
+    JIRA filter URLs look like `.../issues/?jql=project%3DKAN`. Scraping these
+    is hopeless on private/Cloud instances (the issue list is loaded by JS after
+    login), so when we can see a JQL we query the search API directly instead.
+    """
+    params = parse_qs(urlparse(url).query)
+    jql = params.get("jql", [None])[0]
+    return jql.strip() if jql else None
+
+
+def search_issue_keys(
+    jira_base: str,
+    jql: str,
+    auth: Optional[tuple[str, str]] = None,
+    timeout: int = 20,
+    max_issues: int = 500,
+) -> set[str]:
+    """Resolve a JQL query to a set of issue keys via the JIRA Cloud search API.
+
+    Uses the token-paginated `/rest/api/3/search/jql` endpoint (the older
+    `/rest/api/2/search` was removed by Atlassian in 2025).
+    """
+    api_url = f"{jira_base}/rest/api/3/search/jql"
+    headers = {"User-Agent": "critical-path-finder/1.0", "Accept": "application/json"}
+    keys: set[str] = set()
+    next_token: Optional[str] = None
+
+    while True:
+        params = {"jql": jql, "fields": "key", "maxResults": 100}
+        if next_token:
+            params["nextPageToken"] = next_token
+        resp = requests.get(api_url, params=params, auth=auth, timeout=timeout, headers=headers)
+        if resp.status_code == 401:
+            raise JiraClientError(
+                "Search needs credentials: provide an email + API token for this "
+                "private JIRA instance."
+            )
+        if resp.status_code == 400:
+            raise JiraClientError(f"JIRA rejected the JQL query: {resp.text[:200]}")
+        resp.raise_for_status()
+        data = resp.json()
+        for issue in data.get("issues", []):
+            keys.add(issue["key"])
+        next_token = data.get("nextPageToken")
+        if not next_token or len(keys) >= max_issues:
+            break
+
+    return keys
+
+
 def fetch_issue(
     jira_base: str,
     key: str,
@@ -153,14 +205,20 @@ def fetch_issue(
         issue.duration_days = max(round(est_seconds / SECONDS_PER_DAY, 2), 0.25)
         issue.duration_is_estimated = True
 
+    # In JIRA's REST API, each link entry on an issue contains the issue at the
+    # *other* end of the link:
+    #   - an "inwardIssue" means the other issue sits at the inward ("is blocked
+    #     by") end, so THIS issue is the blocker  -> this issue *blocks* it.
+    #   - an "outwardIssue" means the other issue sits at the outward ("blocks")
+    #     end, so THIS issue is the blocked one  -> this issue is *blocked by* it.
     for link in fields.get("issuelinks", []) or []:
         link_type = link.get("type", {})
         outward = link.get("outwardIssue")
         inward = link.get("inwardIssue")
-        if outward and link_type.get("outward", "").lower() == "blocks":
-            issue.blocks.append(outward["key"])
         if inward and link_type.get("inward", "").lower() == "is blocked by":
-            issue.blocked_by.append(inward["key"])
+            issue.blocks.append(inward["key"])
+        if outward and link_type.get("outward", "").lower() == "blocks":
+            issue.blocked_by.append(outward["key"])
 
     return issue
 
