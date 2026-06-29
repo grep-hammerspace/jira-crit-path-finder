@@ -70,7 +70,7 @@ def _assert_public_url(url: str) -> None:
 # (given in seconds) into a duration measured in days.
 SECONDS_PER_DAY = 8 * 60 * 60
 
-DEFAULT_DURATION_DAYS = 1.0
+DEFAULT_DURATION_DAYS = 10.0  # 2 working weeks
 
 
 @dataclasses.dataclass
