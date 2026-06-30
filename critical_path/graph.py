@@ -75,7 +75,6 @@ def _break_cycles(g: nx.DiGraph) -> list[tuple[str, str]]:
         removed.append(edge_to_remove)
     return removed
 
-
 def compute_critical_path(g: nx.DiGraph) -> CPMResult:
     g = g.copy()
     cycles_removed = _break_cycles(g)
