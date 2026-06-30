@@ -59,6 +59,35 @@
         </div>
       </section>
 
+      {% if timeline %}
+      <section class="timeline">
+        <h2>Project timeline</h2>
+        <p class="timeline__meta">Start: <strong>{{ timeline.start_date }}</strong> (earliest issue creation date). End dates count working days only (Mon–Fri).</p>
+        <div class="scenario-cards">
+          <div class="scenario-card scenario-card--good">
+            <span class="scenario__label">Optimistic</span>
+            <span class="scenario__duration">{{ timeline.optimistic.duration }}d</span>
+            <span class="scenario__end-date">{{ timeline.optimistic.end_date }}</span>
+          </div>
+          <div class="scenario-card scenario-card--accent">
+            <span class="scenario__label">PERT expected</span>
+            <span class="scenario__duration">{{ timeline.pert.duration }}d</span>
+            <span class="scenario__end-date">{{ timeline.pert.end_date }}</span>
+          </div>
+          <div class="scenario-card scenario-card--neutral">
+            <span class="scenario__label">Most likely</span>
+            <span class="scenario__duration">{{ timeline.most_likely.duration }}d</span>
+            <span class="scenario__end-date">{{ timeline.most_likely.end_date }}</span>
+          </div>
+          <div class="scenario-card scenario-card--warn">
+            <span class="scenario__label">Pessimistic</span>
+            <span class="scenario__duration">{{ timeline.pessimistic.duration }}d</span>
+            <span class="scenario__end-date">{{ timeline.pessimistic.end_date }}</span>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
       <section class="chain">
         <h2>Critical chain</h2>
         <div class="chain__path">

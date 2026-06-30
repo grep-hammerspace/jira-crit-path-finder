@@ -85,6 +85,7 @@ class Issue:
     blocked_by: list[str] = dataclasses.field(default_factory=list)    # this issue is blocked by these keys
     url: str = ""
     duration_is_estimated: bool = False  # True if a real estimate was found, False if we used the default
+    created: Optional[str] = None       # ISO timestamp string from Jira, e.g. "2024-01-15T10:30:00.000+0000"
 
 
 class JiraClientError(Exception):
@@ -219,7 +220,7 @@ def fetch_issue(
     """Fetch one issue's details from the JIRA REST API (v2)."""
     api_url = f"{jira_base}/rest/api/2/issue/{key}"
     _assert_public_url(api_url)
-    params = {"fields": "summary,status,priority,labels,issuelinks,timetracking,timeoriginalestimate"}
+    params = {"fields": "summary,status,priority,labels,issuelinks,timetracking,timeoriginalestimate,created"}
     resp = requests.get(api_url, params=params, auth=auth, timeout=timeout,
                         headers={"User-Agent": "critical-path-finder/1.0", "Accept": "application/json"})
     if resp.status_code == 401:
@@ -234,6 +235,7 @@ def fetch_issue(
     fields = data.get("fields", {})
 
     issue = Issue(key=key, url=f"{jira_base}/browse/{key}")
+    issue.created = fields.get("created")
     issue.summary = fields.get("summary") or ""
     status = fields.get("status") or {}
     issue.status = status.get("name", "Unknown")

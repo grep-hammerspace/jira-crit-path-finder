@@ -30,16 +30,24 @@ class CPMResult:
     cycles_removed: list[tuple[str, str]]  # edges dropped to break cycles, if any
 
 
-def build_graph(issues: dict[str, Issue]) -> nx.DiGraph:
+def build_graph(
+    issues: dict[str, Issue],
+    duration_overrides: dict[str, float] | None = None,
+) -> nx.DiGraph:
     """
     Build a directed graph where an edge A -> B means "A blocks B", i.e. A must
     finish before B can start. Only edges between issues we actually fetched
     are kept (an issue blocking something outside our set is ignored, since we
     have no duration/status data for it).
+
+    duration_overrides: optional per-key duration map; used to run CPM with
+    alternative scenario durations (optimistic / pessimistic / PERT) without
+    mutating the Issue objects.
     """
+    overrides = duration_overrides or {}
     g = nx.DiGraph()
     for key, issue in issues.items():
-        g.add_node(key, duration=issue.duration_days)
+        g.add_node(key, duration=overrides.get(key, issue.duration_days))
 
     for key, issue in issues.items():
         for blocked_key in issue.blocks:

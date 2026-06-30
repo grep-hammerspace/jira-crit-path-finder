@@ -10,6 +10,9 @@ will:
 
 Run with:  python app.py    (then open http://127.0.0.1:5000)
 """
+import datetime
+import math
+
 from flask import Flask, render_template, request
 
 from critical_path.jira_client import (
@@ -24,6 +27,35 @@ from critical_path.graph import build_graph, compute_critical_path
 
 import requests
 
+
+def _scenario_durations(issues, mode):
+    """Return a {key: duration_days} map adjusted for the given scenario."""
+    result = {}
+    for key, issue in issues.items():
+        d = issue.duration_days
+        if mode == "optimistic":
+            result[key] = max(d * 0.75, 0.25) if issue.duration_is_estimated else 5.0
+        elif mode == "pessimistic":
+            result[key] = d * 1.5 if issue.duration_is_estimated else 20.0
+        elif mode == "most_likely":
+            result[key] = d
+        elif mode == "pert":
+            o = max(d * 0.75, 0.25) if issue.duration_is_estimated else 5.0
+            p = d * 1.5 if issue.duration_is_estimated else 20.0
+            result[key] = (o + 4 * d + p) / 6
+    return result
+
+
+def _add_working_days(start, days):
+    """Return the calendar date that is ceiling(days) working days after start."""
+    remaining = math.ceil(days)
+    current = start
+    while remaining > 0:
+        current += datetime.timedelta(days=1)
+        if current.weekday() < 5:  # Mon–Fri
+            remaining -= 1
+    return current
+
 app = Flask(__name__)
 
 
@@ -37,6 +69,7 @@ def index():
         "result": None,
         "issues": None,
         "jira_base": None,
+        "timeline": None,
     }
 
     if request.method == "POST":
@@ -106,6 +139,33 @@ def index():
                 "ignored to compute the critical path: "
                 + ", ".join(f"{a} -> {b}" for a, b in result.cycles_removed)
             )
+
+        # --- Project start date (earliest created timestamp across all issues) ---
+        created_dates = [
+            datetime.date.fromisoformat(issue.created[:10])
+            for issue in issues.values()
+            if issue.created
+        ]
+        project_start = min(created_dates) if created_dates else None
+
+        # --- Three-scenario timeline (optimistic / most likely / pessimistic / PERT) ---
+        if project_start is not None:
+            scenario_results = {}
+            for mode in ("optimistic", "most_likely", "pessimistic", "pert"):
+                overrides = _scenario_durations(issues, mode)
+                g_s = build_graph(issues, duration_overrides=overrides)
+                scenario_results[mode] = compute_critical_path(g_s).project_duration
+
+            def _fmt_date(d):
+                return d.strftime("%-d %b %Y")
+
+            context["timeline"] = {
+                "start_date": _fmt_date(project_start),
+                "optimistic":  {"duration": round(scenario_results["optimistic"], 1),  "end_date": _fmt_date(_add_working_days(project_start, scenario_results["optimistic"]))},
+                "most_likely": {"duration": round(scenario_results["most_likely"], 1), "end_date": _fmt_date(_add_working_days(project_start, scenario_results["most_likely"]))},
+                "pert":        {"duration": round(scenario_results["pert"], 1),        "end_date": _fmt_date(_add_working_days(project_start, scenario_results["pert"]))},
+                "pessimistic": {"duration": round(scenario_results["pessimistic"], 1), "end_date": _fmt_date(_add_working_days(project_start, scenario_results["pessimistic"]))},
+            }
 
         _CLOSED = {"done", "closed", "resolved", "cancelled", "won't do", "wont do", "rejected"}
 

@@ -21,7 +21,7 @@ funnel_url() {
 }
 
 start() {
-    echo "==> Building and starting container..."
+    echo "==> Starting up deployment"
     docker compose -f "$DIR/compose.yaml" up -d --build
 
     echo "==> Enabling Tailscale Funnel (443 -> localhost:$PORT)..."

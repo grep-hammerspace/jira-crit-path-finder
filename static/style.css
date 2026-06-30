@@ -289,3 +289,76 @@ td a:hover { color: var(--accent); border-color: var(--accent); }
   border-top: 1px solid var(--border);
   padding-top: 16px;
 }
+
+/* Timeline section -------------------------------------------------------- */
+.timeline {
+  margin-bottom: 32px;
+}
+
+.timeline h2 {
+  font-size: 16px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.timeline__meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 14px;
+}
+
+.scenario-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .scenario-cards { grid-template-columns: 1fr 1fr; }
+}
+
+.scenario-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scenario-card--good    { border-left-color: var(--good); }
+.scenario-card--neutral { border-left-color: var(--muted); }
+.scenario-card--warn    { border-left-color: var(--warn); }
+.scenario-card--accent  { border-left-color: var(--accent); }
+
+.scenario__label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.scenario__duration {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.scenario-card--good    .scenario__duration { color: var(--good); }
+.scenario-card--neutral .scenario__duration { color: var(--text); }
+.scenario-card--warn    .scenario__duration { color: var(--warn); }
+.scenario-card--accent  .scenario__duration { color: var(--accent); }
+
+.scenario__end-date {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
