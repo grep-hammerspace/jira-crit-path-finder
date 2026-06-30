@@ -62,7 +62,7 @@
       {% if timeline %}
       <section class="timeline">
         <h2>Project timeline</h2>
-        <p class="timeline__meta">Start: <strong>{{ timeline.start_date }}</strong> (earliest issue creation date). End dates count working days only (Mon–Fri).</p>
+        <p class="timeline__meta">Start: <strong>{{ timeline.start_date }}</strong></p>
         <div class="scenario-cards">
           <div class="scenario-card scenario-card--good">
             <span class="scenario__label">Optimistic</span>
@@ -95,7 +95,6 @@
             <span class="chip chip--critical">{{ key }}</span>{% if not loop.last %}<span class="arrow">→</span>{% endif %}
           {% endfor %}
         </div>
-        <p class="hint">Any slip on these tasks pushes the whole project back. Everything else below has float (slack) — some room to move without affecting the finish date.</p>
       </section>
 
       <section class="table-wrap">
