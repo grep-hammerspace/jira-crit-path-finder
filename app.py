@@ -28,20 +28,26 @@ from critical_path.graph import build_graph, compute_critical_path
 import requests
 
 
-def _scenario_durations(issues, mode):
-    """Return a {key: duration_days} map adjusted for the given scenario."""
+def _scenario_durations(issues, mode, opt_mult=0.75, pes_mult=1.5):
+    """Return a {key: duration_days} map adjusted for the given scenario.
+
+    opt_mult / pes_mult are applied to every issue's duration_days regardless
+    of whether the duration came from a Jira estimate or the configured default,
+    since by the time this is called the caller has already baked the user's
+    default into unestimated issues.
+    """
     result = {}
     for key, issue in issues.items():
         d = issue.duration_days
         if mode == "optimistic":
-            result[key] = max(d * 0.75, 0.25) if issue.duration_is_estimated else 5.0
+            result[key] = max(d * opt_mult, 0.25)
         elif mode == "pessimistic":
-            result[key] = d * 1.5 if issue.duration_is_estimated else 20.0
+            result[key] = d * pes_mult
         elif mode == "most_likely":
             result[key] = d
         elif mode == "pert":
-            o = max(d * 0.75, 0.25) if issue.duration_is_estimated else 5.0
-            p = d * 1.5 if issue.duration_is_estimated else 20.0
+            o = max(d * opt_mult, 0.25)
+            p = d * pes_mult
             result[key] = (o + 4 * d + p) / 6
     return result
 
@@ -70,6 +76,9 @@ def index():
         "issues": None,
         "jira_base": None,
         "timeline": None,
+        "default_duration": 10.0,
+        "opt_mult": 0.75,
+        "pes_mult": 1.5,
     }
 
     if request.method == "POST":
@@ -78,6 +87,33 @@ def index():
         api_token = request.form.get("api_token", "").strip()
         context["url"] = url
         context["email"] = email
+
+        try:
+            default_duration = float(request.form.get("default_duration") or 10.0)
+            if default_duration <= 0:
+                raise ValueError
+        except ValueError:
+            default_duration = 10.0
+        try:
+            opt_mult = float(request.form.get("opt_mult") or 0.75)
+            if opt_mult <= 0:
+                raise ValueError
+        except ValueError:
+            opt_mult = 0.75
+        try:
+            pes_mult = float(request.form.get("pes_mult") or 1.5)
+            if pes_mult <= 0:
+                raise ValueError
+        except ValueError:
+            pes_mult = 1.5
+
+        context["default_duration"] = default_duration
+        context["opt_mult"] = opt_mult
+        context["pes_mult"] = pes_mult
+
+        if opt_mult >= pes_mult:
+            context["error"] = "Optimistic multiplier must be smaller than the pessimistic multiplier."
+            return render_template("index.html", **context)
 
         auth = (email, api_token) if email and api_token else None
 
@@ -122,6 +158,10 @@ def index():
         issues, errors = fetch_all_issues(jira_base, keys, auth=auth)
         context["warnings"].extend(errors)
 
+        for issue in issues.values():
+            if not issue.duration_is_estimated:
+                issue.duration_days = default_duration
+
         if not issues:
             context["error"] = (
                 f"Found {len(keys)} possible issue key(s) but couldn't fetch any of them "
@@ -152,7 +192,7 @@ def index():
         if project_start is not None:
             scenario_results = {}
             for mode in ("optimistic", "most_likely", "pessimistic", "pert"):
-                overrides = _scenario_durations(issues, mode)
+                overrides = _scenario_durations(issues, mode, opt_mult=opt_mult, pes_mult=pes_mult)
                 g_s = build_graph(issues, duration_overrides=overrides)
                 scenario_results[mode] = compute_critical_path(g_s).project_duration
 

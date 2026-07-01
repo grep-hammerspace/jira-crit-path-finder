@@ -83,6 +83,7 @@ def compute_critical_path(g: nx.DiGraph) -> CPMResult:
     durations = nx.get_node_attributes(g, "duration")
 
     es, ef = {}, {}
+    # forward pass
     for n in topo:
         preds = list(g.predecessors(n))
         es[n] = max((ef[p] for p in preds), default=0.0)
@@ -90,6 +91,7 @@ def compute_critical_path(g: nx.DiGraph) -> CPMResult:
 
     project_duration = max(ef.values(), default=0.0)
 
+    # backward pass
     lf, ls = {}, {}
     for n in reversed(topo):
         succs = list(g.successors(n))

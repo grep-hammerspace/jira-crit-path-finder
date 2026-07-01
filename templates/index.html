@@ -34,6 +34,27 @@
         </div>
       </details>
 
+      <details class="auth-details">
+        <summary>Advanced options</summary>
+        <div class="auth-fields">
+          <label class="field">
+            <span>Default duration (days) — used when Jira has no estimate</span>
+            <input type="number" name="default_duration" min="1" step="1"
+                   value="{{ default_duration }}">
+          </label>
+          <label class="field">
+            <span>Optimistic multiplier (e.g. 0.75 = 25% faster)</span>
+            <input type="number" name="opt_mult" min="0.25" step="0.25"
+                   value="{{ opt_mult }}">
+          </label>
+          <label class="field">
+            <span>Pessimistic multiplier (e.g. 1.5 = 50% slower)</span>
+            <input type="number" name="pes_mult" min="0.25" step="0.25"
+                   value="{{ pes_mult }}">
+          </label>
+        </div>
+      </details>
+
       <button type="submit">Find critical path</button>
     </form>
 
@@ -131,7 +152,7 @@
     {% endif %}
 
     <footer class="footer">
-      <p>Duration defaults to 2 weeks (10 working days) per issue when JIRA has no "Original Estimate" set — these are marked <span class="muted">(assumed)</span>. Only the <code>blocks</code> / <code>is blocked by</code> link types are treated as dependencies; other link types (relates to, duplicates, etc.) are ignored.</p>
+      <p>Duration defaults to the configured value (10 working days unless overridden in Advanced options) per issue when JIRA has no "Original Estimate" set — these are marked <span class="muted">(assumed)</span>. Only the <code>blocks</code> / <code>is blocked by</code> link types are treated as dependencies; other link types (relates to, duplicates, etc.) are ignored.</p>
     </footer>
   </main>
 </body>
