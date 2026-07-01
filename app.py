@@ -111,8 +111,11 @@ def index():
         context["opt_mult"] = opt_mult
         context["pes_mult"] = pes_mult
 
-        if opt_mult >= pes_mult:
-            context["error"] = "Optimistic multiplier must be smaller than the pessimistic multiplier."
+        if opt_mult >= 1.0:
+            context["error"] = "Optimistic multiplier must be less than 1 (it represents a speed-up)."
+            return render_template("index.html", **context)
+        if pes_mult <= 1.0:
+            context["error"] = "Pessimistic multiplier must be greater than 1 (it represents a slow-down)."
             return render_template("index.html", **context)
 
         auth = (email, api_token) if email and api_token else None
